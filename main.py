@@ -13,10 +13,7 @@ def index():
 def webhook():
     update = request.get_json()
     app.logger.info("Received update: %s", update)
-    
-    # Forward the update to the central router
     route_message(update)
-    
     return jsonify({"status": "ok"}), 200
 
 if __name__ == '__main__':
