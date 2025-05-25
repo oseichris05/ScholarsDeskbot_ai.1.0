@@ -20,10 +20,6 @@ def handle_callback_query(update):
         qty_str = data.split(":", 1)[1]
         from menus.buy_checker.select_checker import handle_buy_checker_quantity
         handle_buy_checker_quantity(chat_id, qty_str, callback_query_id, message_id)
-    elif data.startswith("buychecker_pay:"):
-        transaction_id = data.split(":", 1)[1]
-        from menus.buy_checker.select_checker import handle_buy_checker_payment_confirmation
-        handle_buy_checker_payment_confirmation(chat_id, transaction_id, callback_query_id, message_id)
     elif data == "buychecker_cancel":
         from menus.buy_checker.select_checker import handle_cancel_buy_checker_flow
         handle_cancel_buy_checker_flow(chat_id, callback_query_id, message_id)
