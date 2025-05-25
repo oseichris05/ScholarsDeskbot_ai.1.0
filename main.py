@@ -3,7 +3,7 @@ import logging
 from menus.router import route_message
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/', methods=['GET'])
 def index():
@@ -12,7 +12,7 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = request.get_json()
-    app.logger.info("Received update: %s", update)
+    app.logger.debug("Received update: %s", update)
     route_message(update)
     return jsonify({"status": "ok"}), 200
 
