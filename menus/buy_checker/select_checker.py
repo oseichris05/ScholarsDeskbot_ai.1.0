@@ -1,23 +1,22 @@
 
 
-# # menus/buy_checker/select_checker.py
-
 # import random
 # import requests
 # import threading
 # import time
 # from menus.router import send_message
+# from price_config import PRICE_CONFIG
 # from utils.session_manager import get_session, set_session, clear_session
 # from database.supabase_client import get_checker_info, get_or_create_user, record_transaction, get_unsold_checkers
 # from config import TELEGRAM_BOT_TOKEN, PAYSTACK_SECRET_KEY
 
-# # Stub for calculating total price.
+# # Function to calculate total price.
 
 
 # def calculate_total_price(quantity, unit_price):
 #     return quantity * unit_price
 
-# # Quantity keyboard with your options.
+# # Quantity keyboard arranged as a block (grid layout).
 
 
 # def get_quantity_keyboard():
@@ -39,9 +38,9 @@
 #         ]
 #     }
 
-# ############################################################
-# # Helper Messaging Functions
-# ############################################################
+# ###############################################
+# # Helper messaging functions:
+# ###############################################
 
 
 # def edit_message_text(chat_id, message_id, text, reply_markup=None):
@@ -79,9 +78,9 @@
 #     except Exception as e:
 #         print(f"[DEBUG] Error answering callback: {e}")
 
-# ############################################################
-# # Paystack Integration Functions
-# ############################################################
+# ###############################################
+# # Paystack integration functions:
+# ###############################################
 
 
 # def initialize_paystack_payment(transaction_id, amount, email):
@@ -118,9 +117,9 @@
 #         print(f"[DEBUG] Error verifying Paystack payment: {e}")
 #         return False
 
-# ############################################################
-# # Buy Checker Flow Functions
-# ############################################################
+# ###############################################
+# # Buy Checker Flow
+# ###############################################
 
 
 # def start_buy_checker_flow(chat_id, message_id=None):
@@ -189,16 +188,22 @@
 #     available_stock = info.get("available_stock", 0)
 #     if available_stock < quantity:
 #         send_message(
-#             chat_id, "Sorry, the quantity you selected {qty_str} is not available. Please choose a smaller amount.")
+#             chat_id, "Sorry, the quantity you selected is not available. Please choose a smaller amount.")
 #         return
 
-#     unit_price = info.get("price") or 23.00
-#     print(f"[DEBUG] {selected_type.upper()} stock: requested={quantity}, available={available_stock}, unit_price={unit_price}")
+#     # unit_price = info.get("price") or 23.00
+#     unit_price = PRICE_CONFIG.get("prices", {}).get(selected_type.lower())
+#     if unit_price is None:
+#         # Fallback to the value in the database, or you can set your own default.
+#         unit_price = info.get("price", 23.00)
+
+#     print(f"[DEBUG] {selected_type.upper()} stock: requested={quantity}, available={available_stock}, price={unit_price}")
 #     user, _ = get_or_create_user(chat_id, {})
 #     total_price = calculate_total_price(quantity, unit_price)
 #     transaction_id = "TX" + str(random.randint(10000, 99999))
 #     record_transaction(user["id"], "buy_checker", transaction_id,
 #                        selected_type, total_price, status="pending")
+
 #     session.update({
 #         "transaction_id": transaction_id,
 #         "quantity": quantity,
@@ -234,21 +239,20 @@
 #     else:
 #         send_message(chat_id, summary, reply_markup=inline_keyboard)
 
-#     # Poll for payment verification every 3 seconds, up to 60 seconds.
+#     # Poll for payment verification.
 #     verified = False
-#     for _ in range(20):
+#     for _ in range(20):  # 20 * 3 secs = 60 seconds max.
 #         if verify_paystack_payment(transaction_id):
 #             verified = True
 #             break
 #         time.sleep(3)
 
 #     if verified:
-#         # Now, before sending the purchased summary,
-#         # check if there are enough unsold checkers available in the database.
+#         # Final check: query the database for unsold checkers.
 #         purchased_items = get_unsold_checkers(selected_type, quantity)
 #         if not purchased_items or len(purchased_items) < quantity:
 #             send_message(
-#                 chat_id, "We're sorry, but we don't have the requested quantity available at the moment. Please choose a smaller amount and try again.")
+#                 chat_id, "Sorry, the quantity you selected is not available (inventory updated). Please choose a smaller amount.")
 #             clear_session(chat_id)
 #             return
 
@@ -308,22 +312,19 @@
 #     start_buy_checker_flow(chat_id, message_id)
 
 
+# menus/buy_checker/select_checker.py
+
 import random
 import requests
-import threading
 import time
 from menus.router import send_message
 from utils.session_manager import get_session, set_session, clear_session
 from database.supabase_client import get_checker_info, get_or_create_user, record_transaction, get_unsold_checkers
 from config import TELEGRAM_BOT_TOKEN, PAYSTACK_SECRET_KEY
 
-# Function to calculate total price.
-
 
 def calculate_total_price(quantity, unit_price):
     return quantity * unit_price
-
-# Quantity keyboard arranged as a block (grid layout).
 
 
 def get_quantity_keyboard():
@@ -345,19 +346,11 @@ def get_quantity_keyboard():
         ]
     }
 
-###############################################
-# Helper messaging functions:
-###############################################
-
 
 def edit_message_text(chat_id, message_id, text, reply_markup=None):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/editMessageText"
-    payload = {
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": chat_id, "message_id": message_id,
+               "text": text, "parse_mode": "Markdown"}
     if reply_markup:
         payload["reply_markup"] = reply_markup
     try:
@@ -384,10 +377,6 @@ def answer_callback(callback_query_id, text=""):
         requests.post(url, json=payload)
     except Exception as e:
         print(f"[DEBUG] Error answering callback: {e}")
-
-###############################################
-# Paystack integration functions:
-###############################################
 
 
 def initialize_paystack_payment(transaction_id, amount, email):
@@ -423,10 +412,6 @@ def verify_paystack_payment(transaction_id):
     except Exception as e:
         print(f"[DEBUG] Error verifying Paystack payment: {e}")
         return False
-
-###############################################
-# Buy Checker Flow
-###############################################
 
 
 def start_buy_checker_flow(chat_id, message_id=None):
@@ -498,12 +483,15 @@ def handle_buy_checker_quantity(chat_id, qty_str, callback_query_id=None, messag
             chat_id, "Sorry, the quantity you selected is not available. Please choose a smaller amount.")
         return
 
+    # Adjust if you use external configuration
     unit_price = info.get("price") or 23.00
     print(f"[DEBUG] {selected_type.upper()} stock: requested={quantity}, available={available_stock}, price={unit_price}")
+
     user, _ = get_or_create_user(chat_id, {})
     total_price = calculate_total_price(quantity, unit_price)
     transaction_id = "TX" + str(random.randint(10000, 99999))
-    record_transaction(user["id"], "buy_checker", transaction_id,
+    # Updated transaction recording: pass full user object.
+    record_transaction(user, "buy_checker", transaction_id,
                        selected_type, total_price, status="pending")
 
     session.update({
@@ -529,6 +517,7 @@ def handle_buy_checker_quantity(chat_id, qty_str, callback_query_id=None, messag
     if not auth_url:
         send_message(chat_id, "Error initializing payment. Please try again.")
         return
+
     inline_keyboard = {
         "inline_keyboard": [
             [{"text": "Pay Now", "url": auth_url}],
@@ -541,16 +530,15 @@ def handle_buy_checker_quantity(chat_id, qty_str, callback_query_id=None, messag
     else:
         send_message(chat_id, summary, reply_markup=inline_keyboard)
 
-    # Poll for payment verification.
+    # Poll for payment verification every 3 seconds, up to 60 seconds.
     verified = False
-    for _ in range(20):  # 20 * 3 secs = 60 seconds max.
+    for _ in range(20):
         if verify_paystack_payment(transaction_id):
             verified = True
             break
         time.sleep(3)
 
     if verified:
-        # Final check: query the database for unsold checkers.
         purchased_items = get_unsold_checkers(selected_type, quantity)
         if not purchased_items or len(purchased_items) < quantity:
             send_message(
@@ -567,7 +555,8 @@ def handle_buy_checker_quantity(chat_id, qty_str, callback_query_id=None, messag
         purchased_message = (
             f"🎉 *Payment Successful!* 🎉\n\n"
             f"Your payment of {total_price:.2f} cedis for {quantity} "
-            f"{'checker' if quantity == 1 else 'checkers'} is confirmed.\n\n"
+            f"{'checker' if quantity == 1 else 'checkers'} has been confirmed.\n\n"
+            f"🛍 *Item Purchased:* {selected_type.upper()} Checker\n"
             f"*Your Checker Details:*\n{details_text}\n\n"
             f"Check your results here: [WAEC Website]({result_link}).\n\n"
             "For additional services, click below."
