@@ -1,5 +1,4 @@
 
-
 # # database/supabase_client.py
 # from supabase import create_client, Client
 # from config import SUPABASE_URL, SUPABASE_KEY
@@ -33,24 +32,23 @@
 #     return res.data
 
 
-# def record_transaction(user_id, transaction_type, transaction_id, item_category, amount, status="pending"):
+# def record_transaction(user, transaction_type, transaction_ref, item_category, amount, status="pending"):
+#     # Use the user's id and contact details.
+#     contact_info = user.get("email") or user.get("phone") or ""
 #     payload = {
-#         "user_id": user_id,
+#         "user_id": user["id"],
 #         "transaction_type": transaction_type,
-#         "item_id": transaction_id,
+#         "transaction_ref": transaction_ref,
 #         "item_category": item_category,
 #         "amount": amount,
-#         "status": status
+#         "status": status,
+#         "contact_info": contact_info
 #     }
 #     res = supabase.table("transactions").insert(payload).execute()
 #     return res.data
 
 
 # def get_checker_info(category: str):
-#     """
-#     Retrieves checker info from stock_tracker table.
-#     Expecting columns: category, available_stock, price.
-#     """
 #     res = supabase.table("stock_tracker").select(
 #         "*").eq("category", category).execute()
 #     if res.data and len(res.data) > 0:
@@ -60,11 +58,6 @@
 
 
 # def get_unsold_checkers(selected_type, quantity):
-#     """
-#     Retrieves 'quantity' unsold checkers from the appropriate table and marks them as sold.
-#     Returns a list of dictionaries with keys 'serial_number' and 'pin'.
-#     """
-#     # Determine the table name based on the selected_type.
 #     table_name = ""
 #     if selected_type.lower() == "bece":
 #         table_name = "bece_checkers"
@@ -74,24 +67,21 @@
 #         table_name = "novdec_checkers"
 #     else:
 #         return []
-
-#     # Query for unsold checkers.
 #     res = supabase.table(table_name).select(
 #         "*").eq("is_sold", False).limit(quantity).execute()
 #     if not res.data or len(res.data) < quantity:
 #         return []
-
-#     # Mark these checkers as sold.
 #     for item in res.data:
 #         supabase.table(table_name).update(
 #             {"is_sold": True}).eq("id", item["id"]).execute()
-
 #     return res.data
 
 
 # database/supabase_client.py
+
 from supabase import create_client, Client
 from config import SUPABASE_URL, SUPABASE_KEY
+import uuid
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -123,7 +113,7 @@ def update_user(chat_id, update_data):
 
 
 def record_transaction(user, transaction_type, transaction_ref, item_category, amount, status="pending"):
-    # Use the user's id and contact details.
+    # Record transaction with user details and contact (email or phone)
     contact_info = user.get("email") or user.get("phone") or ""
     payload = {
         "user_id": user["id"],
@@ -138,7 +128,19 @@ def record_transaction(user, transaction_type, transaction_ref, item_category, a
     return res.data
 
 
+def update_transaction(transaction_ref, item_ids):
+    # Update the transaction record with the purchased item IDs and mark it completed.
+    payload = {
+        "item_ids": item_ids,
+        "status": "completed"
+    }
+    res = supabase.table("transactions").update(payload).eq(
+        "transaction_ref", transaction_ref).execute()
+    return res.data
+
+
 def get_checker_info(category: str):
+    # Retrieve stock info from stock_tracker (expected to contain available_stock; price may come from elsewhere)
     res = supabase.table("stock_tracker").select(
         "*").eq("category", category).execute()
     if res.data and len(res.data) > 0:
@@ -147,7 +149,11 @@ def get_checker_info(category: str):
         return None
 
 
-def get_unsold_checkers(selected_type, quantity):
+def get_unsold_checkers(selected_type, quantity, user, transaction_id):
+    """
+    Retrieve `quantity` unsold checkers from the table corresponding to `selected_type`
+    and mark them as sold.
+    """
     table_name = ""
     if selected_type.lower() == "bece":
         table_name = "bece_checkers"
@@ -157,11 +163,16 @@ def get_unsold_checkers(selected_type, quantity):
         table_name = "novdec_checkers"
     else:
         return []
+
     res = supabase.table(table_name).select(
         "*").eq("is_sold", False).limit(quantity).execute()
     if not res.data or len(res.data) < quantity:
         return []
+
+    # Mark each retrieved item as sold.
     for item in res.data:
-        supabase.table(table_name).update(
-            {"is_sold": True}).eq("id", item["id"]).execute()
+        supabase.table(table_name).update({
+            "is_sold": True
+        }).eq("id", item["id"]).execute()
+
     return res.data
