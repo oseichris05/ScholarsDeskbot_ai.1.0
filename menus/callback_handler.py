@@ -40,10 +40,12 @@ def handle_callback_query(update):
         return
 
 
-# Buy Forms flow:
+# ----------------------------
+    # Buy Forms flow:
     if data.startswith("buyforms_type:"):
         form_type = data.split(":", 1)[1]
         if form_type == "university_forms":
+            # Instead of calling select_forms menu again, call the university forms function to list universities.
             from menus.buy_forms.university_forms import handle_forms_selection
             handle_forms_selection(chat_id, message_id)
         elif form_type == "college_forms":
